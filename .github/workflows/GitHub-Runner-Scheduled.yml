@@ -59,6 +59,10 @@ jobs:
           echo 'ORG='$VAR_ORG_LCASE >> $GITHUB_ENV
           echo 'ORG='$VAR_ORG_LCASE
 
+      - name: Run curl request to get the runner version
+        run: |
+          echo "VERSION=$(curl 'https://api.github.com/repos/actions/runner/releases/latest' | jq '.name' | tr -d '"' | tr -d 'v')" >> $GITHUB_ENV
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
 
@@ -82,3 +86,5 @@ jobs:
           platforms: linux/amd64
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: 
+            GHVERSION=${{ env.VERSION }}
