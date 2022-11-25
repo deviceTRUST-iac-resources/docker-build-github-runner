@@ -27,16 +27,6 @@ _RUNNER_GROUP=${RUNNER_GROUP:-Default}
 _GITHUB_HOST=${GITHUB_HOST:="github.com"}
 _RUN_AS_ROOT=${RUN_AS_ROOT:="true"}
 
-# ensure backwards compatibility
-if [[ -z $RUNNER_SCOPE ]]; then
-  if [[ ${ORG_RUNNER} == "true" ]]; then
-    echo 'ORG_RUNNER is now deprecated. Please use RUNNER_SCOPE="org" instead.'
-    export RUNNER_SCOPE="org"
-  else
-    export RUNNER_SCOPE="repo"
-  fi
-fi
-
 RUNNER_SCOPE="${RUNNER_SCOPE,,}" # to lowercase
 
 case ${RUNNER_SCOPE} in
