@@ -60,6 +60,7 @@ jobs:
       - name: Run curl request to get the runner version
         run: |
           echo "VERSION=$(curl 'https://api.github.com/repos/actions/runner/releases/latest' | jq '.name' | tr -d '"' | tr -d 'v')" >> $GITHUB_ENV
+          echo $VERSION
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
