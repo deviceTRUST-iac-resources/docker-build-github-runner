@@ -1,12 +1,15 @@
 #!/usr/bin/dumb-init /bin/bash
+# shellcheck shell=bash
 
 export RUNNER_ALLOW_RUNASROOT=1
-export PATH=$PATH:/actions-runner
+export PATH=${PATH}:/actions-runner
 
 # Un-export these, so that they must be passed explicitly to the environment of
 # any command that needs them.  This may help prevent leaks.
 export -n ACCESS_TOKEN
 export -n RUNNER_TOKEN
+export -n APP_ID
+export -n APP_PRIVATE_KEY
 
 deregister_runner() {
   echo "Caught SIGTERM. Deregistering runner"
@@ -50,24 +53,36 @@ case ${RUNNER_SCOPE} in
 esac
 
 configure_runner() {
+  ARGS=()
+  if [[ -n "${APP_ID}" ]] && [[ -n "${APP_PRIVATE_KEY}" ]] && [[ -n "${APP_LOGIN}" ]]; then
+    if [[ -n "${ACCESS_TOKEN}" ]] || [[ -n "${RUNNER_TOKEN}" ]]; then
+      echo "ERROR: ACCESS_TOKEN or RUNNER_TOKEN provided but are mutually exclusive with APP_ID, APP_PRIVATE_KEY and APP_LOGIN." >&2
+      exit 1
+    fi
+    echo "Obtaining access token for app_id ${APP_ID} and login ${APP_LOGIN}"
+    nl="
+"
+    ACCESS_TOKEN=$(APP_ID="${APP_ID}" APP_PRIVATE_KEY="${APP_PRIVATE_KEY//\\n/${nl}}" APP_LOGIN="${APP_LOGIN}" bash /app_token.sh)
+  elif [[ -n "${APP_ID}" ]] || [[ -n "${APP_PRIVATE_KEY}" ]] || [[ -n "${APP_LOGIN}" ]]; then
+    echo "ERROR: All of APP_ID, APP_PRIVATE_KEY and APP_LOGIN must be specified." >&2
+    exit 1
+  fi
+
   if [[ -n "${ACCESS_TOKEN}" ]]; then
     echo "Obtaining the token of the runner"
     _TOKEN=$(ACCESS_TOKEN="${ACCESS_TOKEN}" bash /token.sh)
     RUNNER_TOKEN=$(echo "${_TOKEN}" | jq -r .token)
   fi
 
+  # shellcheck disable=SC2153
   if [ -n "${EPHEMERAL}" ]; then
     echo "Ephemeral option is enabled"
-    _EPHEMERAL="--ephemeral"
-  else
-    _EPHEMERAL=""
+    ARGS+=("--ephemeral")
   fi
 
   if [ -n "${DISABLE_AUTO_UPDATE}" ]; then
     echo "Disable auto update option is enabled"
-    _AUTO_UPDATE="--disableupdate"
-  else
-    _AUTO_UPDATE=""
+    ARGS+=("--disableupdate")
   fi
 
   echo "Configuring"
@@ -80,12 +95,10 @@ configure_runner() {
       --runnergroup "${_RUNNER_GROUP}" \
       --unattended \
       --replace \
-      ${_EPHEMERAL} \
-      ${_AUTO_UPDATE}
+      "${ARGS[@]}"
 
   [[ ! -d "${_RUNNER_WORKDIR}" ]] && mkdir "${_RUNNER_WORKDIR}"
-  
-  [[ $(id -u) -eq 0 ]] && /usr/bin/chown -R runner ${_RUNNER_WORKDIR} /opt/hostedtoolcache/ /actions-runner || :
+
 }
 
 # Opt into runner reusage because a value was given
@@ -121,7 +134,20 @@ fi
 # Container's command (CMD) execution as runner user
 
 if [[ ${_RUN_AS_ROOT} == "true" ]]; then
-  [[ $(id -u) -eq 0 ]] && ( "$@" ) || ( echo "ERROR: RUN_AS_ROOT env var is set to true but the user has been overriden and is not running as root"; exit 1 )
+  if [[ $(id -u) -eq 0 ]]; then
+    "$@"
+  else
+    echo "ERROR: RUN_AS_ROOT env var is set to true but the user has been overridden and is not running as root, but UID '$(id -u)'"
+    exit 1
+  fi
 else
-  [[ $(id -u) -eq 0 ]] && ( /usr/sbin/gosu runner "$@" ) || ( "$@" )
+  if [[ $(id -u) -eq 0 ]]; then
+    [[ -n "${CONFIGURED_ACTIONS_RUNNER_FILES_DIR}" ]] && /usr/bin/chown -R runner "${CONFIGURED_ACTIONS_RUNNER_FILES_DIR}"
+    /usr/bin/chown -R runner "${_RUNNER_WORKDIR}" /actions-runner
+    # The toolcache is not recursively chowned to avoid recursing over prepulated tooling in derived docker images
+    /usr/bin/chown runner /opt/hostedtoolcache/
+    /usr/sbin/gosu runner "$@"
+  else
+    "$@"
+  fi
 fi
