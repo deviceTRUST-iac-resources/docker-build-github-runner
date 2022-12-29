@@ -12,8 +12,9 @@ jobs:
         uses: actions/checkout@master
 
       - name: Get GitHub organization or user and set variable for docker image creation
+        # VAR_ORG=$(dirname ${GITHUB_REPOSITORY}) << expects the GitHub and DockerHub username/repo name to be the same. Changed it to ${{ secrets.DH_USERNAME }} to make it more flexible.
         run: |
-          VAR_ORG=${{ secrets.DH_USERNAME }}
+          VAR_ORG=${{ secrets.DH_USERNAME }}          
           VAR_ORG_LCASE=$(echo $VAR_ORG | tr [:upper:] [:lower:])
           echo 'ORG='$VAR_ORG_LCASE >> $GITHUB_ENV
           echo 'ORG='$VAR_ORG_LCASE
