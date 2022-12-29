@@ -13,7 +13,7 @@ jobs:
 
       - name: Get GitHub organization or user and set variable for docker image creation
         run: |
-          VAR_ORG=$(dirname ${GITHUB_REPOSITORY})
+          VAR_ORG=${{ secrets.DH_USERNAME }}
           VAR_ORG_LCASE=$(echo $VAR_ORG | tr [:upper:] [:lower:])
           echo 'ORG='$VAR_ORG_LCASE >> $GITHUB_ENV
           echo 'ORG='$VAR_ORG_LCASE
